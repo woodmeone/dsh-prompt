@@ -1,0 +1,12 @@
+# 统一用 LF。
+#
+# 为什么必须钉死：blocks/*.md 是提示词正文，CRLF 会改变装配出的文本
+# 字节。多机器同步时若一边签出成 CRLF，另一边读到的就是另一份内容。
+# 装配侧虽会把 \r\n 归一成 \n（lib/prompt-blocks.js），但源文件本身
+# 保持一致更省事，也避免 diff 全是行尾噪声。
+* text=auto eol=lf
+
+# 图片按二进制处理，别做行尾转换
+*.png binary
+*.jpg binary
+*.svg text eol=lf

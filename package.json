@@ -1,0 +1,85 @@
+{
+  "name": "dsh-prompt",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 提示词管理：顶部 + 尾部双位置注入，块级拖拽排序、开关、增删改查。尾部走请求期追加，不落盘不累积。Prompt block manager for dsh — U-shaped dual-slot injection with drag-reorder, per-block toggles, and full CRUD.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./blocks": "./lib/prompt-blocks.js",
+    "./edit": "./lib/prompt-edit.js",
+    "./inject": "./lib/prompt-inject.js",
+    "./patches": "./lib/prompt-patches.js",
+    "./redteam": "./lib/redteam/index.js",
+    "./redteam/store": "./lib/redteam/store.js",
+    "./redteam/ui": "./lib/redteam/ui.js",
+    "./redteam/tools": "./lib/redteam/tools.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "blocks",
+    "presets",
+    "skills",
+    "bin",
+    "docs",
+    "test",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/blocks.test.mjs && node test/inject.test.mjs && node test/patch-anchor.test.mjs && node test/e2e-shadow.mjs && node test/adversarial.test.mjs && node test/wiring.test.mjs && node test/preset-declare.test.mjs && node test/regression-real.mjs",
+    "test:blocks": "node test/blocks.test.mjs",
+    "test:inject": "node test/inject.test.mjs",
+    "test:patch": "node test/patch-anchor.test.mjs",
+    "test:e2e": "node test/e2e-shadow.mjs",
+    "test:adversarial": "node test/adversarial.test.mjs",
+    "test:wiring": "node test/wiring.test.mjs",
+    "patch:apply": "node test/apply-real.mjs --keep",
+    "patch:rollback": "node test/apply-real.mjs --rollback",
+    "build:panel": "node scripts/build-prompt-panel.mjs"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "prompt",
+    "prompt-management",
+    "prompt-injection",
+    "context-management",
+    "deepseek-harness",
+    "roleplay",
+    "llm-security"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/woodmeone/dsh-prompt.git"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dshTarget": "0.2.0-rc.2"
+}

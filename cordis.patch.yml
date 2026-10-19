@@ -1,0 +1,61 @@
+# dsh-prompt bundle patch
+#
+# 提示词装配层。与 dsh-prompt 正交：
+#   dsh-prompt  —— 执行环境（沙箱 / 审批 / 工具面 / 身份清洗），46 个宿主补丁
+#   dsh-prompt —— 提示词装配（块、两位注入、拖拽、开关、增删改查）
+#
+# ⚠ 两个插件都注册 systemPrompt.section。purge 的主段在 order=-100000，
+#   本插件的主段也在 -100000。谁先注册谁在前 —— 这不会出错（两个段并列），
+#   但如果你想只留一套，把对应插件的段关掉即可，不必卸载插件。
+
+# ── 本插件 ──────────────────────────────────────────────────────
+- insert:
+    - id: dsh-prompt
+      name: 'dsh-prompt'
+      inject: [systemPrompt]
+      config:
+        enabled: true
+        topEnabled: true
+        tailEnabled: true
+        tailMaxMessages: 8
+        verbose: false
+
+    # ── 演练台（红队模式）──────────────────────────────────────
+    #
+    # 这三行是「模式下拉里能选到 redteam」的**唯一**来源：
+    # profile 的 cordis.yml 只声明 standard / ptc / minimal / cordis 四个
+    # 预设，redteam 全靠下面第一行在运行期调 `ctx.agentPresets.register()`。
+    #
+    # 少这一组 → `selectedDefault: redteam` 指向一个没人注册的 id →
+    #   `agentPresets.resolve()` 抛 agent-preset/not-found → **新建会话失败**。
+    # 从 dsh-purge 换装到 dsh-prompt 时最容易漏的就是这一块，勿删。
+    - id: dsh-prompt-redteam
+      name: dsh-prompt/redteam
+
+    # 演练台事实库（SQLite），数据在 $DSH_HOME/redteam
+    - id: dsh-prompt-redteam-store
+      name: dsh-prompt/redteam/store
+      config:
+        root: !!js dshHomePath('redteam')
+
+    # 演练台 HTTP 桥 + 右侧栏控制台
+    - id: dsh-prompt-redteam-ui
+      name: dsh-prompt/redteam/ui
+
+# ── dsh-prompt 的提示词层交接（可选，默认不关）──────────────────
+#
+# purge 的提示词层有三条通路（section @ -100000 + globalThis.__dshPromptHungPrompt
+# + agent/pre-step 过滤）。本插件只管自己的段，**不擅自改 purge**。
+#
+# 若你希望「提示词全部由 dsh-prompt 管，purge 只留执行环境」：
+#   把下面这几行的 disabled 改成 false，然后重启 dsh。
+#   代价：purge 的 46 个补丁仍在（执行环境照旧），只是它的提示词不再注入。
+#
+# 注意：purge 的 `enabled` 是**总闸**，关掉它 46 个补丁一起没。所以这里用
+# capabilityProtocol 关掉副段，主段交给下面的 inject 开关（由 purge 自己读配置）。
+# 真要停产 purge 的提示词，请改 purge 自己的 cordis 配置，而不是在这里盲关。
+
+# - id: dsh-prompt
+#   config:
+#     enabled: true        # 保持补丁层活着
+#     capabilityProtocol: false   # 关掉 purge 的副段（约 300 字）
