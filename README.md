@@ -96,7 +96,47 @@ dsh plugin install <path-to-dsh-prompt>
 # 或在 profiles/web/package.json 的 dsh.profile.bundles 里加上 dsh-prompt
 ```
 
-### 3.3 施加尾部注入补丁
+### 3.3 新机器首次安装后默认得到什么
+
+**先回答一个容易误判的问题：插件的块内容跟着插件走，但「你这台机器的调参」不跟着走。**
+
+首次安装时，插件会把自带的 `blocks/*.md` seed 到 `$DSH_HOME/dsh-prompt/blocks/`，
+并按内建默认表装配。得到的是**出厂态**：
+
+| 块 | order | 默认开关 | 位置 | 正文 |
+|---|---|---|---|---|
+| core-persona 人格 | 100 | 开 | 顶部 | 1,727 字 |
+| core-style 文风 | 200 | 开 | 顶部 | 675 字 |
+| core-contract 核心执行契约 | 300 | 开 | 顶部 | 916 字 |
+| core-jailbreak 破限 | 400 | 开 | 顶部 | 3,691 字 |
+| core-armor 破甲 | 500 | 开 | 顶部 | 1,143 字 |
+| **core-routing 任务路由** | 600 | **关** | 顶部 | 14,508 字 |
+| core-tail 尾部续压 | 700 | 开 | **尾部** | 324 字 |
+
+装配结果：**顶部 8,155 字 / 5 块，尾部 323 字 / 1 块**。
+
+默认关掉 `core-routing` 是有意的：它一块占总量约 71%，日常对话用不上。
+
+**所以「装上就有我现在这些提示词」——不是。** 出厂态**不含**下面这些属于
+单机状态的东西，因为它们存在 `$DSH_HOME/dsh-prompt/`，不在插件包里：
+
+| 你现在的状态 | 出厂态 |
+|---|---|
+| 顶部 22,667 字 / 6 块 | 顶部 8,155 字 / 5 块 |
+| `core-routing` **开着** | 默认关 |
+| 顺序：contract → persona → jailbreak → armor → style → routing | persona → style → contract → jailbreak → armor → routing |
+| 有自建块 `1213`（关着） | 没有 |
+| `core-contract` 用覆盖版（919 字） | 出厂版（916 字） |
+| `core-tail` 用覆盖版（334 字） | 出厂版（324 字） |
+
+想看任意一台机器上的实际差异：
+
+```bash
+node test/fresh-state.mjs          # 出厂态 vs 本机现役
+node test/fresh-state.mjs --fresh  # 只看出厂态
+```
+
+### 3.4 施加尾部注入补丁
 
 尾部注入需要**一条宿主补丁**（改 `dsh-agent-loop/lib/index.js` 的组装点）。
 在插件的「提示词」面板里点一次即可，或直接调 API：
@@ -110,7 +150,66 @@ curl -X POST http://127.0.0.1:<port>/dsh-prompt/prompt \
 **不施加补丁时**：顶部注入照常工作，尾部在面板里能看到装配结果但不进请求。
 面板顶部会显示「宿主补丁 已装 / 未装」。
 
-### 3.4 ⚠ 与 dsh-purge 的关系
+### 3.5 多机同步 / 第二台机器
+
+本仓库是**私有**的，用途是个人多机同步，不是对外分发。
+
+**第一步：拉代码**
+
+```powershell
+# 私有仓库，先登录
+gh auth login
+gh repo clone woodmeone/dsh-prompt D:\dsh-prompt
+```
+
+**第二步：装进 profile**
+
+```powershell
+dsh plugin --profile web add file:D:\dsh-prompt
+```
+
+**第三步：在那台机器上逐项启用**（宿主补丁**不会**从仓库继承）
+
+```
+1. 完全退出 dsh，重启
+2. dock →「提示词」tab → 点「装宿主补丁」
+3. 「清洗」页 → 点「应用」
+4. 再完全退出 dsh 并重启一次
+5. 新开一轮对话
+```
+
+第 4 步的重启不能省：宿主补丁改的是磁盘上的 `.js`，而正在跑的进程
+加载的还是启动时那一份。
+
+**两处必读注意**
+
+| 注意 | 说明 |
+|---|---|
+| **宿主补丁逐机独立** | 它改的是**那台机器**上的 `dsh-agent-loop/lib/index.js`。新机器必须自己点一次 |
+| **锚点绑宿主版本** | 插件声明 `dshTarget: 0.2.0-rc.2`。宿主版本不同 → 点「装宿主补丁」会报「锚点未命中（宿主版本可能不同）」。此时把版本号报出来，按新版本真实字节重新对锚点 |
+
+**如果想让第二台机器也拥有「你现在这套调参」**（不是出厂态），
+把状态目录整份搬过去 —— 它是纯数据，与插件版本解耦：
+
+```powershell
+# 在旧机器上取
+#   C:\Users\WoodMe\.dsh\dsh-prompt\config.json    ← 顺序 / 开关 / 位置 / 角色
+#   C:\Users\WoodMe\.dsh\dsh-prompt\overrides\     ← 你改过的正文
+# 覆盖到新机器同名路径，然后重启 dsh（或面板点「刷新」）
+```
+
+> 别只搬 `blocks/`：那里面是出厂正文。真正属于你的是 `config.json` + `overrides/`。
+> 三档读优先级 `内联 > overrides/ > blocks/`，见第六节。
+
+**日常同步**就是普通 git：
+
+```powershell
+git add -A ; git commit -m "..." ; git push
+# 另一台
+git pull
+```
+
+### 3.6 ⚠ 与 dsh-purge 的关系
 
 两个插件都注册 `systemPrompt.section`，**都会往 -100000 放主段**。
 
