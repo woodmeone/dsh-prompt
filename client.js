@@ -141,7 +141,7 @@ window.__ModuleLoader__.load({ id: "dsh-prompt", factory: (require) => {
 			"welcome.lead": "首次安装本插件时请阅读以下说明。确认后本窗不再弹出。",
 			"welcome.warn": "本插件免费开源。任何背着作者私自售卖、付费倒卖或借本项目盈利的行为，作者将依法追究法律责任。",
 			"welcome.body": "dsh-prompt 是 DeepSeek Harness 的本机网络安全红队评测与清洗插件：在受控本机环境中调整提示词与补丁、做授权范围内的演练台操作。项目免费、非营利，源码仓库：",
-			"welcome.repo": "https://github.com/YuJunZhiXue/dsh-prompt",
+			"welcome.repo": "https://github.com/woodmeone/dsh-prompt",
 			"welcome.ban1": "禁止将本项目用于未授权的网络攻击、入侵、窃取数据、破坏系统或任何违法犯罪。",
 			"welcome.ban2": "禁止商业售卖、付费倒卖、黑灰产牟利，以及隐瞒作者的营利性再分发。",
 			"welcome.ban3": "使用者须自行遵守所在地法律法规与平台规范；违法后果由行为人自行承担，与作者无关。",
@@ -482,7 +482,7 @@ window.__ModuleLoader__.load({ id: "dsh-prompt", factory: (require) => {
 			"welcome.lead": "Please read this on first install. After you confirm, it will not appear again.",
 			"welcome.warn": "This plugin is free and open source. Anyone who sells, resells, or profits from it behind the author's back may face legal action.",
 			"welcome.body": "dsh-prompt is a local DeepSeek Harness plugin for security evaluation and cleaning: adjust prompts and patches on a machine you control, and use the drill console only within authorized scope. It is free and non-profit. Repository:",
-			"welcome.repo": "https://github.com/YuJunZhiXue/dsh-prompt",
+			"welcome.repo": "https://github.com/woodmeone/dsh-prompt",
 			"welcome.ban1": "Do not use this project for unauthorized attacks, intrusion, data theft, sabotage, or any illegal activity.",
 			"welcome.ban2": "Do not commercially sell, resell, or profit from gray-market use, or redistribute for profit without the author.",
 			"welcome.ban3": "You must follow local law and platform rules; illegal use is solely your responsibility.",
@@ -1505,7 +1505,7 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 
 			const doUpdate = useCallback((id) => {
 				const lane = id === "beta" ? "beta" : "stable";
-				postUpdate({ op: "apply", ref: lane === "beta" ? "beta" : "master", channel: lane }, "done", id).catch(() => {});
+				postUpdate({ op: "apply", ref: lane === "beta" ? "beta" : "main", channel: lane }, "done", id).catch(() => {});
 			}, [postUpdate]);
 
 			const changeChannel = useCallback((next) => {
