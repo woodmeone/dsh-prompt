@@ -33,13 +33,15 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node test/blocks.test.mjs && node test/inject.test.mjs && node test/patch-anchor.test.mjs && node test/e2e-shadow.mjs && node test/adversarial.test.mjs && node test/wiring.test.mjs && node test/preset-declare.test.mjs && node test/regression-real.mjs",
+    "test": "node test/blocks.test.mjs && node test/inject.test.mjs && node test/patch-anchor.test.mjs && node test/e2e-shadow.mjs && node test/adversarial.test.mjs && node test/wiring.test.mjs && node test/preset-declare.test.mjs && node test/regression-real.mjs && node test/host-locate-patch.test.mjs && node test/host-clean-gate.test.mjs",
     "test:blocks": "node test/blocks.test.mjs",
     "test:inject": "node test/inject.test.mjs",
     "test:patch": "node test/patch-anchor.test.mjs",
     "test:e2e": "node test/e2e-shadow.mjs",
     "test:adversarial": "node test/adversarial.test.mjs",
     "test:wiring": "node test/wiring.test.mjs",
+    "test:locate": "node test/host-locate-patch.test.mjs",
+    "test:gate": "node test/host-clean-gate.test.mjs",
     "patch:apply": "node test/apply-real.mjs --keep",
     "patch:rollback": "node test/apply-real.mjs --rollback",
     "build:panel": "node scripts/build-prompt-panel.mjs"

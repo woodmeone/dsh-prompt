@@ -127,7 +127,15 @@ console.log("\n[bug 2] 宿主源码：assemble() 不许塌成正则字面量");
     const hasWaterfall = text.includes("const transformed = await this.ctx.waterfall(");
     check("assemble() 里的 waterfall 调用在", hasWaterfall);
     check("assemble() 有 return transformed", /if \(completeSection === void 0 && !runtimeContextSuppressed\) return transformed;/.test(text));
-    check("assemble() 返回里有 contexts 字段", /contexts: runtimeContextSuppressed \? \[\] : transformed\.contexts/.test(text));
+    // contexts 的写法随 dsh 版本变过：0.2.0 是 `? []`，0.2.1 起收紧成
+    // requiredContexts 过滤。断言钉死某一版就会“升版即假红”（Issue #2）。
+    const contextsShapes = [
+      /contexts: runtimeContextSuppressed \? \[\] : transformed\.contexts/,
+      /contexts: runtimeContextSuppressed \? transformed\.contexts\.filter\(\(entry\) => requiredContexts\.has\(entry\.name\)\) : transformed\.contexts/,
+    ];
+    const hitShape = contextsShapes.findIndex((re) => re.test(text));
+    check("assemble() 返回里有 contexts 字段（任一已知版本形态）", hitShape >= 0,
+      hitShape >= 0 ? `命中形态 #${hitShape}` : "两种已知形态都不在");
 
     // 反向验证：把损坏形态塞进一份副本，扫描器必须报警。
     // 用真实的现场样本（本轮从宿主上抓到的原始损坏行，479 字符）。

@@ -3479,6 +3479,8 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 
 
 
+
+
 /* __DSH_PROMPT_PANEL_BEGIN__ */
 		// 「提示词」面板（源码在 lib/prompt-panel.client.js）
 		/**
@@ -3561,6 +3563,29 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 
 		const PROMPT_API = "/dsh-prompt/prompt";
 
+		/**
+		 * 把服务端失败体折成一句人话。
+		 *
+		 * 为什么必须先读 body 再判状态码：`applyPatch` 的失败原因是
+		 * `{ok:false, reason:"锚点未命中（宿主版本可能不同）", file}`，HTTP 400 只是
+		 * 它的外壳。旧版先 `throw new Error("HTTP " + r.status)`，body 从未被读，
+		 * 用户只能看到 400 —— 原因全丢。
+		 */
+		function describeFailure(data, status) {
+			const parts = [];
+			const reason = data && (data.reason || data.error);
+			if (reason) parts.push(String(reason));
+			else parts.push(status ? "HTTP " + status : "op failed");
+			if (data && data.ai_base) parts.push("宿主 " + data.ai_base);
+			if (data && data.agent_loop) parts.push("文件 " + data.agent_loop);
+			if (data && data.host_version) parts.push("版本 " + data.host_version);
+			if (data && data.anchor) parts.push("锚点 " + data.anchor);
+			if (data && Array.isArray(data.tried) && data.tried.length > 1) {
+				parts.push("候选 " + data.tried.length + " 份");
+			}
+			return parts.join(" · ");
+		}
+
 		async function promptApi(op, payload) {
 			const args = Object.assign({ op }, payload || {});
 			const r = await fetch(PROMPT_API, {
@@ -3569,10 +3594,10 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 				body: JSON.stringify(args),
 				credentials: "same-origin",
 			});
-			if (!r.ok) throw new Error("HTTP " + r.status);
+			// 先解析 body：失败原因写在里面，状态码只是外壳。
 			const data = await r.json().catch(() => null);
-			if (!data) throw new Error("返回不是 JSON");
-			if (data.ok === false) throw new Error(data.error || "op failed");
+			if (!data) throw new Error("返回不是 JSON（HTTP " + r.status + "）");
+			if (!r.ok || data.ok === false) throw new Error(describeFailure(data, r.status));
 			return data;
 		}
 
@@ -3671,8 +3696,11 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 						"顶部 " + ((snap && snap.top && snap.top.bytes) || 0) + " 字 · 尾部 "
 						+ ((snap && snap.tail && snap.tail.bytes) || 0) + " 字"),
 					(snap && snap.host && snap.host.has_ours)
-						? h("span", { style: { fontSize: "11px", opacity: .55 }, title: (snap.host && snap.host.agent_loop) || "" },
-							"宿主补丁 已装")
+						? h("span", {
+							style: { fontSize: "11px", opacity: .55 },
+							title: [snap.host.agent_loop, snap.host.ai_base, snap.host.host_version ? "dsh " + snap.host.host_version : ""]
+								.filter(Boolean).join("\n"),
+						}, "宿主补丁 已装" + (snap.host.host_version ? " · " + snap.host.host_version : ""))
 						: h("button", {
 							type: "button", className: "dshpm-btn", disabled: busy,
 							title: "尾部注入需要一条宿主补丁。不改这条，尾部块装配得出来但发不出去。",
