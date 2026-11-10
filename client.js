@@ -3845,8 +3845,10 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 
 					h("div", { className: "dshpm-new" },
 						h("input", {
-							className: "wide", placeholder: "新块 id（字母数字 _ . : -）",
+							className: "wide", placeholder: "新块 id（字母 数字 _ . -）",
 							value: newBlock.id,
+							title: "只能含字母、数字、_ . -，且不能以 . 或 - 开头；"
+								+ "不能用冒号（Windows 文件名非法）与保留名（CON/NUL/COM1…）",
 							onChange: (e) => setNewBlock({ id: e.target.value, name: newBlock.name }),
 						}),
 						h("input", {
