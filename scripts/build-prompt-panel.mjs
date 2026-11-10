@@ -21,10 +21,25 @@ let panel = fs.readFileSync(src, "utf8").replace(/\r\n/g, "\n");
 let client = fs.readFileSync(clientPath, "utf8").replace(/\r\n/g, "\n");
 
 // 幂等：已有就替换掉旧块
-const bAt = client.indexOf(BEGIN);
+//
+// ⚠ 这里必须把旧块**连同尾部空行一起**吃掉。
+//   旧实现只切到 END 标记末尾，而 fragment 自己在 END 之后带了一个空行，
+//   于是每跑一次就多留一个空行 —— 连跑三次 client.js 就多出 6 个空行，
+//   每次重新注入都在污染 diff，且永远收敛不了。
+//   切完再反向吃掉残留空行，让「跑 N 次」的结果与「跑 1 次」逐字节相同。
+const bAtMark = client.indexOf(BEGIN);
 const eAt = client.indexOf(END);
-if (bAt >= 0 && eAt > bAt) {
-  client = client.slice(0, bAt) + client.slice(eAt + END.length);
+if (bAtMark >= 0 && eAt > bAtMark) {
+  let tail = eAt + END.length;
+  // 吃掉紧随其后的换行（fragment 自带的那个空行）
+  while (client[tail] === "\n") tail += 1;
+  client = client.slice(0, bAtMark) + client.slice(tail);
+  // 再吃掉 BEGIN 之前因上次插入而残留的空行，避免每次插入都往上堆
+  let bAt = bAtMark;
+  while (bAt > 1 && client[bAt - 1] === "\n" && client[bAt - 2] === "\n") {
+    client = client.slice(0, bAt - 1) + client.slice(bAt);
+    bAt -= 1;
+  }
 }
 
 // 找插入点：drill fragment 的开标记之前

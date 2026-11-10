@@ -3476,11 +3476,6 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 		}
 
 		
-
-
-
-
-
 /* __DSH_PROMPT_PANEL_BEGIN__ */
 		// 「提示词」面板（源码在 lib/prompt-panel.client.js）
 		/**
@@ -3562,6 +3557,22 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 		}
 
 		const PROMPT_API = "/dsh-prompt/prompt";
+
+		/**
+		 * 把字节数折成人看的单位。
+		 *
+		 * 为什么不再显示「N 字」：bytes 是 UTF-8 字节数，不是字符数 —— 中文下一个字
+		 * 占 3 字节，混排 emoji 更多。把字节说成「字」会让用户误判离 512KB 上限还有多远。
+		 * 这里统一显示 B / KB，并且 KB 与上限（512 KB）用同一个 1024 进制。
+		 */
+		function fmtBytes(n) {
+			const v = Number(n);
+			if (!Number.isFinite(v) || v <= 0) return "0 B";
+			if (v < 1024) return v + " B";
+			const kb = v / 1024;
+			if (kb < 1024) return (kb < 10 ? kb.toFixed(1) : Math.round(kb)) + " KB";
+			return (kb / 1024).toFixed(2) + " MB";
+		}
 
 		/**
 		 * 把服务端失败体折成一句人话。
@@ -3693,8 +3704,8 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 						}), "尾部"),
 					h("span", { className: "sp" }),
 					h("span", { style: { fontSize: "11px", opacity: .55 } },
-						"顶部 " + ((snap && snap.top && snap.top.bytes) || 0) + " 字 · 尾部 "
-						+ ((snap && snap.tail && snap.tail.bytes) || 0) + " 字"),
+						"顶部 " + fmtBytes(snap && snap.top && snap.top.bytes) + " · 尾部 "
+						+ fmtBytes(snap && snap.tail && snap.tail.bytes)),
 					(snap && snap.host && snap.host.has_ours)
 						? h("span", {
 							style: { fontSize: "11px", opacity: .55 },
@@ -3765,7 +3776,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 									h("option", { value: "user" }, "user"),
 									h("option", { value: "assistant" }, "assistant"),
 								),
-								h("div", { className: "dshpm-num" }, b.bytes + " 字"),
+								h("div", { className: "dshpm-num", title: b.bytes + " 字节" }, fmtBytes(b.bytes)),
 								h("div", { style: { display: "flex", gap: "5px" } },
 									h("button", {
 										type: "button", className: "dshpm-btn", disabled: busy,
@@ -3818,7 +3829,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 											},
 										}, hasOther ? "从另一位置移除" : "同时挂到另一位置"),
 										h("span", { style: { opacity: .5, fontSize: "11px" } },
-											"来源：" + b.contentSource + " · " + activeContent.length + " 字"),
+											"来源：" + b.contentSource + " · 草稿 " + fmtBytes(new TextEncoder().encode(activeContent).length)),
 									),
 								) : null,
 							);
