@@ -339,6 +339,40 @@ console.log("\n[12] na 计入分母后，进度条不能永远到不了 100%");
   eq("全部适用补丁打完时 pct 正好 100%", Math.round((allDone / applicable) * 100), 100);
 }
 
+// ═══════════════════════════════════════════════════════════════
+console.log("\n[13] status 顶层四个计数必须与 patches_tally 同源");
+// ═══════════════════════════════════════════════════════════════
+{
+  // 自查发现：顶层 patches_skipped 原来写 `display_skipped ?? patches_skipped`，
+  // 优先取 display（折叠口径）。于是同一个响应里出现两套数：
+  // 顶层 skipped=19，而 patches_tally 给 skipped 18 + missing_file 2 = 20。
+  // 这正是 Issue #3 要消灭的问题，只是换了个地方复发。
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(path.join(LIB, "index.js"), "utf8");
+
+  check("顶层 patches_applied 不再优先取 display_*",
+    !/patches_applied:\s*state\.ai_base\s*\?\s*\(state\.display_applied/.test(src),
+    "仍在用 display_applied 顶替");
+  check("顶层 patches_pending 不再优先取 display_*",
+    !/patches_pending:\s*state\.display_pending/.test(src),
+    "仍在用 display_pending");
+  check("顶层 patches_skipped 不再优先取 display_*",
+    !/patches_skipped:\s*state\.display_skipped/.test(src),
+    "仍在用 display_skipped");
+  check("顶层计数改用 patches_tally 派生",
+    /patches_applied:\s*state\.ai_base\s*\?\s*\(state\.patches_tally\?\.applied/.test(src),
+    "没有从 tally 派生");
+  check("patches_skipped = skipped + missing_file",
+    /patches_skipped:[\s\S]{0,200}?patches_tally\?\.skipped[\s\S]{0,120}?patches_tally\?\.missing_file/.test(src),
+    "skipped 未合并 missing_file");
+
+  // 数值验证：顶层四类 + already + unmatched 必须等于 total
+  const t = core.tallyPatchStatus(core.ALL_PATCHES, {}, { surface: "web" });
+  const topLevel = t.applied + t.already + t.pending + t.unmatched
+    + (t.skipped + t.missing_file) + t.na;
+  eq("顶层各数之和 == total", topLevel, t.total);
+}
+
 console.log("\n==================================================");
 console.log(`通过 ${pass} / 失败 ${fail} / 共 ${pass + fail}`);
 if (fail) {
