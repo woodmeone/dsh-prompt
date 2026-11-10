@@ -1831,7 +1831,12 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 			const hostSurface = hostSurfaceOf(s);
 			const desktopLikely = hostSurface === "desktop" || clientGuessSurface() === "desktop";
 			const sealedReady = !located && desktopLikely && !!(s && (s.asar_still_sealed || s.desktop_exe || s.desktop_install));
-			const patchesLost = !located && !!(s && s.patches_lost);
+			// #3：优先用三态。布尔 patches_lost 把 unknown 折叠成 false，
+			// 会显示成「未定位」而不是「不确定」——两者对用户的意思不同。
+			const lostState = (s && s.patches_lost_state && s.patches_lost_state.state) || "";
+			const patchesLost = lostState
+				? lostState === "lost"
+				: (!located && !!(s && s.patches_lost));
 			// #3：计数一律用后端同一次枚举派生的 tally，前端不再自己数。
 			// 旧写法 `tallyPatches(patchRowsOf(s))` 是**第五套口径**：
 			//   · patchRowsOf 在第 1123 行把 na 过滤掉（分母缩小）

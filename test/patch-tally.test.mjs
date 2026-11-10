@@ -373,6 +373,20 @@ console.log("\n[13] status 顶层四个计数必须与 patches_tally 同源");
   eq("顶层各数之和 == total", topLevel, t.total);
 }
 
+// ═══════════════════════════════════════════════════════════════
+console.log("\n[14] 面板优先用三态，别把 unknown 显示成「未定位」");
+// ═══════════════════════════════════════════════════════════════
+{
+  const fs = await import("node:fs");
+  const cli = fs.readFileSync(path.join(HERE, "..", "client.js"), "utf8");
+  check("面板读了 patches_lost_state", cli.includes("patches_lost_state"),
+    "面板仍只用布尔 patches_lost");
+  check("面板优先按 state==='lost' 判断",
+    /lostState\s*===\s*"lost"/.test(cli), "未按三态判定");
+  check("保留布尔回退（旧后端仍能工作）",
+    /lostState\s*\?[\s\S]{0,200}s\.patches_lost/.test(cli), "缺向后兼容回退");
+}
+
 console.log("\n==================================================");
 console.log(`通过 ${pass} / 失败 ${fail} / 共 ${pass + fail}`);
 if (fail) {
