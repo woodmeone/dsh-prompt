@@ -207,7 +207,10 @@ console.log("\n[6] 孤立态");
     blocks.assembleTail(H);
   } catch (e) { threw = true; }
   check("数据目录被删后不抛", !threw);
-  check("describe 回落 builtin", blocks.describe(H).configSource === "builtin");
+  // #5：数据目录整个被删 = 没有 config.json = 全新安装，不该报 corrupt。
+  check("数据目录被删后 describe 回落 builtin（不是 corrupt）",
+    blocks.describe(H).configSource === "builtin",
+    `configSource=${blocks.describe(H).configSource}`);
 
   // config.json 是目录（不是文件）
   fs.mkdirSync(path.join(H, "dsh-prompt", "config.json"), { recursive: true });

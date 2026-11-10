@@ -193,6 +193,36 @@ console.log("\n[6] 空正文不归档（原本就不归档，别改坏）");
   check("写空正文时会归档上一版非空正文", after === mid + 1, `mid=${mid} after=${after}`);
 }
 
+// ═══════════════════════════════════════════════════════════════
+console.log("\n[7] 归档失败不许阻断主操作（保险不能变成铁锁）");
+// ═══════════════════════════════════════════════════════════════
+{
+  const home = makeHome();
+  edit.setBlockContent(home, "core-persona", "第一版");
+
+  // 把 _trash 占成一个普通文件，让归档必然失败（ENOTDIR）
+  const trash = trashRootOf(home);
+  fs.rmSync(trash, { recursive: true, force: true });
+  fs.writeFileSync(trash, "我占住了这个路径");
+
+  let r = null;
+  let threw = false;
+  try { r = edit.setBlockContent(home, "core-persona", "第二版"); } catch { threw = true; }
+
+  check("归档失败时 setBlockContent 不抛", !threw);
+  check("归档失败时主操作仍然成功", r && r.ok === true, JSON.stringify(r));
+  const ov = path.join(home, "dsh-prompt", "overrides", "core-persona.md");
+  eq("正文真的写进去了", fs.existsSync(ov) ? fs.readFileSync(ov, "utf8") : "", "第二版");
+
+  // 删块同理：删除也不该因为归档失败而拒绝
+  edit.addBlock(home, { id: "will-delete", name: "待删", slots: ["top"], content: "内容" });
+  let r3 = null;
+  let threw3 = false;
+  try { r3 = edit.removeBlock(home, "will-delete"); } catch { threw3 = true; }
+  check("归档失败时 removeBlock 不抛", !threw3);
+  check("归档失败时删块仍然成功", r3 && r3.ok === true, JSON.stringify(r3));
+}
+
 console.log("\n==================================================");
 console.log(`通过 ${pass} / 失败 ${fail} / 共 ${pass + fail}`);
 if (fail) {
