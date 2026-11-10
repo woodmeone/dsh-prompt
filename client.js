@@ -1851,7 +1851,14 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 				: { applied: 0, pending: 0, unmatched: 0, skipped: 0, na: 0, total: 0 };
 			const total = tally.total;
 			const applied = tally.applied;
-			const pct = located && total ? Math.round((applied / total) * 100) : 0;
+			// 进度条分母用「适用数」= total - na。
+			// na 是「本 surface 用不上」，算进完成率会让进度条永远停在 88%
+			// （实测 72/82），看起来像永远做不完 —— 那是撒谎。
+			// 而「已清洗 X / 共 Y」的 Y 仍用 total，那个数是用来和 patch_status 对账的。
+			const applicable = (s && Number.isFinite(s.patches_applicable) && s.patches_applicable > 0)
+				? s.patches_applicable
+				: Math.max(0, total - (tally.na || 0));
+			const pct = located && applicable ? Math.round((applied / applicable) * 100) : 0;
 			const metricNotes = [];
 			if (tally.pending) metricNotes.push(t("metric.pendingShort", { n: tally.pending }));
 			if (tally.unmatched) metricNotes.push(t("metric.unmatchedShort", { n: tally.unmatched }));

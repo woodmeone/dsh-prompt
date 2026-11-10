@@ -276,6 +276,69 @@ console.log("\n[10] 面板不许自己再数一遍（第五套口径的来源）
     `只找到 ${naCount} 处`);
 }
 
+// ═══════════════════════════════════════════════════════════════
+console.log("\n[11] 没定位到宿主时，分母必须是 0 而不是 82");
+// ═══════════════════════════════════════════════════════════════
+{
+  // 这条是自查中发现的真回归：为了让恒等式成立，我一开始让 total 恒等于
+  // patches.length，于是「没找到宿主」时状态页会显示 0/82 —— 用户会以为
+  // 「82 个补丁全都没打上」，而真相是「压根还没找到宿主」。
+  // 原实现用 `if (!aiBase) { na++; continue }` 刻意不累加分母，意图是对的。
+  //
+  // 现在：无宿主 -> total=0 且六类全 0（同样自洽，且不撒谎）。
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(path.join(LIB, "core.js"), "utf8");
+  const idx = src.indexOf("export async function gatherState");
+  const body = src.slice(idx, idx + 5000);
+
+  check("gatherState 的分母受 aiBase 门控",
+    /patches_total\s*=\s*aiBase\s*\?/.test(body),
+    "patches_total 不再受 aiBase 门控，无宿主时会报 82");
+  check("无宿主时分类也一并清零（避免 total=0 但 skipped=77 的自相矛盾）",
+    body.includes("tallyForReport"), "缺 tallyForReport 清零逻辑");
+
+  // 纯函数层面：空 status 传入 tally，总数仍是 82 —— 这是对的，
+  // 因为 tally 只负责「给定补丁集就算全」，门控是 gatherState 的职责。
+  const t = core.tallyPatchStatus(core.ALL_PATCHES, {}, { surface: "web" });
+  check("tallyPatchStatus 本身仍以补丁总数为分母（门控由调用方负责）",
+    t.total === core.ALL_PATCHES.length, `total=${t.total}`);
+  const KEYS = ["applied", "already", "pending", "unmatched", "skipped", "missing_file", "na"];
+  eq("空 status 下恒等式依然成立", KEYS.reduce((n, k) => n + (t[k] || 0), 0), t.total);
+}
+
+// ═══════════════════════════════════════════════════════════════
+console.log("\n[12] na 计入分母后，进度条不能永远到不了 100%");
+// ═══════════════════════════════════════════════════════════════
+{
+  // 自查发现：na 计入 total 后，进度条 applied/total 打满也只有 88%（实测 72/82），
+  // 看起来像永远做不完。两个数各司其职：
+  //   · patches_total = 82  用于「和 patch_status 对账」
+  //   · patches_applicable = 72  用于「完成度 / 进度条」
+  const fs = await import("node:fs");
+  const coreSrc = fs.readFileSync(path.join(LIB, "core.js"), "utf8");
+  check("core.js 导出 patches_applicable", coreSrc.includes("patches_applicable"),
+    "缺适用分母字段");
+  check("patches_applicable 的定义是 total - na",
+    /patches_applicable\s*:\s*tallyForReport\.total\s*-\s*tallyForReport\.na/.test(coreSrc),
+    "定义不对");
+
+  const idxSrc = fs.readFileSync(path.join(LIB, "index.js"), "utf8");
+  check("status 里带 patches_applicable", idxSrc.includes("patches_applicable"));
+
+  const cliSrc = fs.readFileSync(path.join(HERE, "..", "client.js"), "utf8");
+  check("面板进度条用 applicable 而非 total 做分母",
+    cliSrc.includes("applicable") && /Math\.round\(\(applied \/ applicable\)/.test(cliSrc),
+    "进度条仍在用 total 做分母");
+
+  // 数值验证：全部适用补丁都打完时，进度条必须正好 100%
+  const t = core.tallyPatchStatus(core.ALL_PATCHES, {}, { surface: "web" });
+  const applicable = t.total - t.na;
+  check("适用分母 < 总数（na 确实被排除了）", applicable < t.total,
+    `applicable=${applicable} total=${t.total}`);
+  const allDone = applicable;
+  eq("全部适用补丁打完时 pct 正好 100%", Math.round((allDone / applicable) * 100), 100);
+}
+
 console.log("\n==================================================");
 console.log(`通过 ${pass} / 失败 ${fail} / 共 ${pass + fail}`);
 if (fail) {
