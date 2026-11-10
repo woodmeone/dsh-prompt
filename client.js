@@ -3504,12 +3504,6 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 
 		
 
-
-
-
-
-
-
 /* __DSH_PROMPT_PANEL_BEGIN__ */
 		// 「提示词」面板（源码在 lib/prompt-panel.client.js）
 		/**
@@ -3882,7 +3876,6 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 		}
 
 /* __DSH_PROMPT_PANEL_END__ */
-
 /* __DSH_PROMPT_DRILL_BEGIN__ */
 		// 内嵌演练台（源码在 lib/redteam，已并进本插件）
 		const __dshPromptDrill = (() => {
