@@ -101,13 +101,15 @@ console.log("\n[2] 装配：每个块的正文只读 1 次");
 {
   const home = makeHome(30);
   const r = countReads(() => blocks.assembleTop(home));
-  // 快照要把块表里每块的正文读到（装配只取其中启用的子集），
-  // 所以上界按「块表总数」算，不是按「装配到几个」。每块最多 2 次试探（override 未命中 + blocks/）。
   const total = blocks.loadConfig(home).blocks.length;
   const p = blocks.assembleTop(home).parts.length;
-  check(`块表 ${total} 块、装配 ${p} 个 => .md 读 ${r.md} 次（≤ 2×${total}）`,
+  // 上界按「启用块数」而不是「块表总数」：装配只该读要装配的那些。
+  // 每个块最多 2 次试探（overrides/ 未命中 + blocks/ 命中）。
+  check(`装配 ${p} 个块 => .md 读 ${r.md} 次（≤ 2×启用数 ${p * 2}）`,
+    r.md <= p * 2, `实际 ${r.md} 次（块表共 ${total} 块）`);
+  // 反向断言：不许因为块表里有大量未启用块就跟着多读
+  check(`不含未启用块的正文读（读过 ${r.md} 次 ≤ 全表 ${total} 块）`,
     r.md <= total * 2, `实际 ${r.md} 次`);
-  console.log(`       （对照：改造前每次都要额外读 config.json，300 块时累计 306 次）`);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -123,33 +125,39 @@ console.log("\n[3] describe()：正文不重复读");
 }
 
 // ═══════════════════════════════════════════════════════════════
-console.log("\n[4] 性能：装配耗时随块数线性增长，不是二次方");
+console.log("\n[4] 复杂度：装配的读盘量随块数线性增长，与块表规模无关");
 // ═══════════════════════════════════════════════════════════════
 {
-  // 不写死毫秒阈值（换机器就失效）。改成断言语义：块数翻 N 倍，耗时不许涨 N² 倍。
-  const measure = (n) => {
-    const home = makeHome(n);
-    for (let i = 0; i < 3; i += 1) blocks.assembleTop(home); // 预热
-    const rounds = 10;
-    const t0 = performance.now();
-    for (let i = 0; i < rounds; i += 1) blocks.assembleTop(home);
-    return (performance.now() - t0) / rounds;
+  // ⚠ 刻意不用「耗时比」做断言。
+  //   实测过：真正的 O(n²) 实现在「20 块 vs 200 块」下耗时比只有 ~16，
+  //   任何宽松阈值（比如 30）都抓不住它；而写死毫秒阈值又会在慢机器/CI 上假失败。
+  //   所以改成断言**读盘次数**——它是稳定、可复现、与机器无关的复杂度代理。
+  const measure = (nBlocks, enableCount) => {
+    const home = makeHome(nBlocks);
+    if (enableCount !== undefined) {
+      const root = path.join(home, "dsh-prompt");
+      const cfg = JSON.parse(fs.readFileSync(path.join(root, "config.json"), "utf8"));
+      cfg.blocks.forEach((b, i) => { b.enabled = i < enableCount; });
+      fs.writeFileSync(path.join(root, "config.json"), JSON.stringify(cfg, null, 2));
+    }
+    return countReads(() => {
+      blocks.assembleTop(home);
+      blocks.assembleTail(home);
+    });
   };
-  const small = measure(20);
-  const big = measure(200);
-  const ratio = big / Math.max(small, 0.001);
-  // 线性应约 10 倍（块数也约 10 倍）；二次方会是 ~100 倍。给足余量取 30。
-  check(`200 块 / 20 块 耗时比 ${ratio.toFixed(1)} ≤ 30（线性而非二次）`, ratio <= 30,
-    `20 块 ${small.toFixed(2)}ms, 200 块 ${big.toFixed(2)}ms`);
 
-  // 绝对上界也留一条，但放宽到 25ms —— 只为抓住「又变成每块读一次 config」的重大退化。
-  const home300 = makeHome(300);
-  for (let i = 0; i < 3; i += 1) blocks.assembleTop(home300);
-  const t0 = performance.now();
-  for (let i = 0; i < 10; i += 1) blocks.assembleTop(home300);
-  const avg300 = (performance.now() - t0) / 10;
-  check(`300 块单次装配 ${avg300.toFixed(2)}ms ≤ 25ms（改造前 90ms）`, avg300 <= 25,
-    `实测 ${avg300.toFixed(2)}ms`);
+  // 关键场景：块表很大，但只启用少数几个（普通人的真实状态）
+  const few = measure(100, 3);
+  check(`100 块只启用 3 个 -> 整轮 .md 读 ${few.md} 次（与启用数同阶，不是与块表同阶）`,
+    few.md <= 40, `实际 ${few.md} 次（退化成读全表时会到 428 次）`);
+  check(`100 块只启用 3 个 -> config.json 读 2 次（top + tail 各一次快照）`,
+    few.config === 2, `实际 ${few.config} 次`);
+
+  // 块表翻 10 倍、启用数不变时，读盘量不该跟着翻 10 倍
+  const small = measure(10, 3);
+  const big = measure(100, 3);
+  check(`块表 10→100 而启用数不变时，.md 读次数不随块表放大`,
+    big.md <= small.md + 10, `10 块=${small.md} 次, 100 块=${big.md} 次`);
 }
 
 // ═══════════════════════════════════════════════════════════════

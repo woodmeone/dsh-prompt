@@ -155,6 +155,38 @@ console.log("\n[6] 面板文案不许再把字节说成「字」");
   check("面板文案含「字节」或「B」", /字节|\bB\b/.test(panel));
 }
 
+// ═══════════════════════════════════════════════════════════════
+console.log("\n[7] status op 的 payload 也必须是字节（面板顶部显示的是它）");
+// ═══════════════════════════════════════════════════════════════
+{
+  // 曾经这里是个漏洞：面板顶部读的是 status 返回的 snap.top.bytes，
+  // 而 index.js 里那两处用的是 text.length（码元）。于是面板显示 300 B
+  // 而真实是 900 B —— PR 的核心主张「叫 bytes 的必须真是字节」在最显眼处失守。
+  // 这组断言直接扫 index.js 的源码，确保没有裸 .length 混进 bytes 字段。
+  const idx = fs.readFileSync(path.join(LIB, "index.js"), "utf8");
+
+  const topLine = idx.match(/top:\s*\{[^}]*bytes:[^,}]*/);
+  check("找得到 status payload 的 top.bytes 赋值", Boolean(topLine),
+    "index.js 里没匹配到 top.bytes");
+  if (topLine) {
+    check("top.bytes 用 byteSize，不是 text.length",
+      /byteSize\(/.test(topLine[0]) && !/\.length/.test(topLine[0]),
+      `实际写法：${topLine[0].trim()}`);
+  }
+
+  // 只取 bytes: 之后的表达式，别把 `messages: tailMsgs.length` 这类
+  // 「条数」也当成违规 —— 条数本来就该是 .length。
+  const tailBytesExpr = idx.match(/bytes:\s*tailMsgs\.reduce\([\s\S]{0,300}?\n\s*\},?/);
+  check("找得到 status payload 的 tail.bytes 表达式", Boolean(tailBytesExpr));
+  if (tailBytesExpr) {
+    const expr = tailBytesExpr[0];
+    check("tail.bytes 用 byteSize 累加文本体积",
+      /byteSize\(/.test(expr), `实际写法：${expr.replace(/\s+/g, " ").slice(0, 110)}`);
+    check("tail.bytes 不再直接累加码元 text.length",
+      !/\)\s*\.length/.test(expr), `实际写法：${expr.replace(/\s+/g, " ").slice(0, 110)}`);
+  }
+}
+
 console.log("\n==================================================");
 console.log(`通过 ${pass} / 失败 ${fail} / 共 ${pass + fail}`);
 if (fail) {

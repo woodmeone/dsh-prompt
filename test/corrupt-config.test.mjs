@@ -99,13 +99,17 @@ console.log("\n[3] 四种真实的坏法都要被识别");
     { name: "截断的 JSON", text: '{ "blocks": [ {' },
     { name: "根是数组不是对象", text: "[1,2,3]" },
     { name: "blocks 是字符串不是数组", text: '{"blocks":"nope"}' },
+    { name: "blocks 是 null", text: '{"blocks":null}' },
   ];
   for (const c of cases) {
     const home = makeHome();
     fs.writeFileSync(cfgPathOf(home), c.text);
     const d = blocks.describe(home);
-    const flagged = d.configSource === "corrupt" || (c.name === "blocks 是字符串不是数组" && d.configSource === "config");
-    check(`${c.name}：被标记（configSource=${d.configSource}）`, flagged,
+    // 不留逃生门：结构损坏一律必须是 corrupt。
+    // 旧版这里写了「blocks 非数组时允许 config 也算过」的旁路，实测那个用例
+    // 本来就返回 corrupt，旁路是死代码且预先放宽了断言。
+    check(`${c.name}：标记为 corrupt（configSource=${d.configSource}）`,
+      d.configSource === "corrupt",
       `configSource=${d.configSource} configError=${JSON.stringify(d.configError)}`);
   }
 }
@@ -124,6 +128,9 @@ console.log("\n[4] 坏 config 下装配仍然工作（fail-open 不能退）");
   } catch { threw = true; }
   check("坏 config 下 assembleTop 不抛", !threw);
   check("坏 config 下仍装配出出厂正文（注入不塌）", text.length > 0, `bytes=${text.length}`);
+  // 上一条 check(..., true) 是同义反复；这里用真实观测值断言，并顺带确认
+  // 抛没抛这件事本身是被记录的（threw 为 false 才有意义）。
+  check("异常确实没有发生（threw === false）", threw === false);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -160,6 +167,42 @@ console.log("\n[7] 面板必须显式提示，而不是照常渲染");
   check("面板判断了 configSource === 'corrupt'", panel.includes('"corrupt"') || panel.includes("'corrupt'"));
   check("面板有告警文案（含「读取失败」或「损坏」）", /读取失败|损坏|读不懂/.test(panel));
   check("提示里带上原因（引用 configError）", panel.includes("configError"));
+}
+
+// ═══════════════════════════════════════════════════════════════
+console.log("\n[8] 坏 config 被重建前必须先备份原文（不许静默销毁）");
+// ═══════════════════════════════════════════════════════════════
+{
+  const home = makeHome();
+  // 一份「人手可修」的截断 config，含一个用户自建块的定义
+  const broken = '{"blocks":[{"id":"mine","name":"我的块","order":1,"enabled":true,"slots":["top"],"role":"system"';
+  fs.writeFileSync(cfgPathOf(home), broken);
+  eq("先确认它是 corrupt", blocks.describe(home).configSource, "corrupt");
+
+  // 用户看到告警后随手点了个开关 —— 写入侧会重建 config
+  const r = edit.updateBlockMeta(home, "core-persona", { enabled: true });
+  check("重建成功（写入侧自愈能力不变）", r.ok === true, JSON.stringify(r));
+
+  // 关键：原来的坏文件必须还能找回来
+  const trashRoot = path.join(home, "dsh-prompt", "_trash");
+  const found = [];
+  const walk = (p) => {
+    if (!fs.existsSync(p)) return;
+    for (const e of fs.readdirSync(p, { withFileTypes: true })) {
+      const f = path.join(p, e.name);
+      if (e.isDirectory()) walk(f);
+      else {
+        try { if (fs.readFileSync(f, "utf8").includes('"mine"')) found.push(f); } catch { /* skip */ }
+      }
+    }
+  };
+  walk(trashRoot);
+  check("坏原文被备份到 _trash（用户还能手工抢救）", found.length > 0,
+    `_trash 里找不到含 "mine" 的文件`);
+  if (found.length) {
+    console.log(`       备份位置：${path.relative(home, found[0])}`);
+    check("备份内容是原文逐字", fs.readFileSync(found[0], "utf8") === broken);
+  }
 }
 
 console.log("\n==================================================");
