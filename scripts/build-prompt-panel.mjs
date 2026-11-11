@@ -21,10 +21,24 @@ let panel = fs.readFileSync(src, "utf8").replace(/\r\n/g, "\n");
 let client = fs.readFileSync(clientPath, "utf8").replace(/\r\n/g, "\n");
 
 // 幂等：已有就替换掉旧块
-const bAt = client.indexOf(BEGIN);
+//
+// ⚠ 边界必须精确，否则会吃掉「本来就在那儿」的排版空行。
+//   第一版切完旧块还会反向吞掉 BEGIN 之前的连续空行 —— 那不分「上次插入的残留」
+//   和「原作者写的分隔空行」。实测：锚点前有 3 个空行的合法排版，跑一次就变成 1 个，
+//   而 diff 里看不出是谁改的。
+//
+//   正确做法：fragment 自己只负责自己的边界 ——
+//     · 起点 = BEGIN 标记
+//     · 终点 = END 标记结尾（**不含**其后的换行）
+//   删除时精确切掉 [BEGIN, END+END.length)，再把残留的**一个**分隔换行去掉
+//   （那是 fragment 自己插进去的），其它空行一律不动。
+const bAtMark = client.indexOf(BEGIN);
 const eAt = client.indexOf(END);
-if (bAt >= 0 && eAt > bAt) {
-  client = client.slice(0, bAt) + client.slice(eAt + END.length);
+if (bAtMark >= 0 && eAt > bAtMark) {
+  let tail = eAt + END.length;
+  // 只吃掉 fragment 自己引入的那一个行尾换行，不多吃。
+  if (client[tail] === "\n") tail += 1;
+  client = client.slice(0, bAtMark) + client.slice(tail);
 }
 
 // 找插入点：drill fragment 的开标记之前
@@ -37,11 +51,13 @@ const body = panel
   .map((l) => (l.length ? indent + l : l))
   .join("\n");
 
+// fragment 自己只到 END 为止，后面**只带一个**换行（把 END 行收尾）。
+// 分隔用的空行由 client.js 的原有排版提供，不由 fragment 制造 ——
+// 否则每跑一次就多一个空行，永远收敛不了。
 const fragment = `${BEGIN}
 		// 「提示词」面板（源码在 lib/prompt-panel.client.js）
 ${body}
 ${END}
-
 `;
 
 client = client.slice(0, anchor) + fragment + client.slice(anchor);

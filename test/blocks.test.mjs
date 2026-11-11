@@ -217,7 +217,11 @@ console.log("\n[10] 损坏数据不炸");
 {
   fs.writeFileSync(blocks.configPath(HOME), "{ this is not json", "utf8");
   const d = blocks.describe(HOME);
-  eq("坏 config 回落 builtin", d.configSource, "builtin");
+  // #5 起：坏 config 不再和「没有 config」混为一谈。
+  // 降级行为仍是回落出厂表，但来源必须报 corrupt，让面板能提示用户
+  // 「你现在看到的不是你的块表」—— 旧断言 builtin 正是这个 bug 的守护者。
+  eq("坏 config 标记为 corrupt", d.configSource, "corrupt");
+  check("并且说得出原因", Boolean(d.configError && d.configError.length));
   check("仍能装配", blocks.assembleTop(HOME).text.length > 0);
   // 写入侧也要能自愈
   const healed = edit.updateBlockMeta(HOME, "core-persona", { enabled: true });
