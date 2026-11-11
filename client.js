@@ -185,6 +185,7 @@ window.__ModuleLoader__.load({ id: "dsh-prompt", factory: (require) => {
 			"metric.pendingShort": "待处理 {n}",
 			"metric.unmatchedShort": "没对上 {n}",
 			"metric.skipShort": "跳过 {n}",
+			"metric.naShort": "不适用 {n}",
 			"metric.unlocated.count": "—",
 			"metric.shim": "shim",
 			"metric.shim.na": "本端不需要",
@@ -526,6 +527,7 @@ window.__ModuleLoader__.load({ id: "dsh-prompt", factory: (require) => {
 			"metric.pendingShort": "Pending {n}",
 			"metric.unmatchedShort": "No match {n}",
 			"metric.skipShort": "Skipped {n}",
+			"metric.naShort": "N/A {n}",
 			"metric.unlocated.count": "—",
 			"metric.shim": "shim",
 			"metric.shim.na": "Not needed here",
@@ -1829,15 +1831,45 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 			const hostSurface = hostSurfaceOf(s);
 			const desktopLikely = hostSurface === "desktop" || clientGuessSurface() === "desktop";
 			const sealedReady = !located && desktopLikely && !!(s && (s.asar_still_sealed || s.desktop_exe || s.desktop_install));
-			const patchesLost = !located && !!(s && s.patches_lost);
-			const tally = located ? tallyPatches(patchRowsOf(s)) : { applied: 0, pending: 0, unmatched: 0, skipped: 0, total: 0 };
+			// #3：优先用三态。布尔 patches_lost 把 unknown 折叠成 false，
+			// 会显示成「未定位」而不是「不确定」——两者对用户的意思不同。
+			const lostState = (s && s.patches_lost_state && s.patches_lost_state.state) || "";
+			const patchesLost = lostState
+				? lostState === "lost"
+				: (!located && !!(s && s.patches_lost));
+			// #3：计数一律用后端同一次枚举派生的 tally，前端不再自己数。
+			// 旧写法 `tallyPatches(patchRowsOf(s))` 是**第五套口径**：
+			//   · patchRowsOf 在第 1123 行把 na 过滤掉（分母缩小）
+			//   · tallyPatches 又自己把 already 归进 applied
+			// 于是面板显示 63/82，而后端 patch_status 有 82 键、patches_total=72。
+			// 现在统一取 s.patches_tally（后端 tallyPatchStatus 的结果，含 na、可加和）。
+			const backendTally = (s && s.patches_tally) || null;
+			const tally = located && backendTally
+				? {
+					applied: (backendTally.applied || 0) + (backendTally.already || 0),
+					pending: backendTally.pending || 0,
+					unmatched: backendTally.unmatched || 0,
+					skipped: (backendTally.skipped || 0) + (backendTally.missing_file || 0),
+					na: backendTally.na || 0,
+					total: backendTally.total || 0,
+				}
+				: { applied: 0, pending: 0, unmatched: 0, skipped: 0, na: 0, total: 0 };
 			const total = tally.total;
 			const applied = tally.applied;
-			const pct = located && total ? Math.round((applied / total) * 100) : 0;
+			// 进度条分母用「适用数」= total - na。
+			// na 是「本 surface 用不上」，算进完成率会让进度条永远停在 88%
+			// （实测 72/82），看起来像永远做不完 —— 那是撒谎。
+			// 而「已清洗 X / 共 Y」的 Y 仍用 total，那个数是用来和 patch_status 对账的。
+			const applicable = (s && Number.isFinite(s.patches_applicable) && s.patches_applicable > 0)
+				? s.patches_applicable
+				: Math.max(0, total - (tally.na || 0));
+			const pct = located && applicable ? Math.round((applied / applicable) * 100) : 0;
 			const metricNotes = [];
 			if (tally.pending) metricNotes.push(t("metric.pendingShort", { n: tally.pending }));
 			if (tally.unmatched) metricNotes.push(t("metric.unmatchedShort", { n: tally.unmatched }));
 			if (tally.skipped) metricNotes.push(t("metric.skipShort", { n: tally.skipped }));
+			// na 也报出来 —— 「82 里有 10 项不适用」和「只有 72 项」是两句话。
+			if (tally.na) metricNotes.push(t("metric.naShort", { n: tally.na }));
 
 			const versions = (updateInfo && updateInfo.versions) || [];
 			const channelNow = (updateInfo && updateInfo.channel) || channel || "stable";
