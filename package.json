@@ -44,6 +44,7 @@
     "test:patch": "node test/patch-anchor.test.mjs",
     "test:e2e": "node test/e2e-shadow.mjs",
     "test:adversarial": "node test/adversarial.test.mjs",
+    "test:probe": "node test/probe-cache.test.mjs",
     "test:wiring": "node test/wiring.test.mjs",
     "test:hygiene": "node test/callback-hygiene.test.mjs",
     "test:locate": "node test/host-locate-patch.test.mjs",
